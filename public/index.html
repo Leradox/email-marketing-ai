@@ -1,0 +1,773 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>MailCraft AI</title>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0a0a0f;
+      --surface: #12121a;
+      --surface2: #1a1a26;
+      --border: #2a2a3d;
+      --accent: #7c6af7;
+      --accent2: #e85d8a;
+      --text: #e8e8f0;
+      --muted: #6b6b85;
+      --success: #34d399;
+      --error: #f87171;
+      --radius: 16px;
+    }
+
+    html, body { height: 100%; background: var(--bg); color: var(--text); font-family: 'DM Sans', sans-serif; }
+
+    /* ── Noise overlay ── */
+    body::before {
+      content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+      opacity: 0.4;
+    }
+
+    /* ── Auth Screen ── */
+    #auth-screen {
+      position: fixed; inset: 0; z-index: 100;
+      display: flex; align-items: center; justify-content: center;
+      background: radial-gradient(ellipse at 30% 50%, #1a0a2e 0%, #0a0a0f 60%);
+    }
+
+    .auth-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 24px; padding: 48px 40px; width: 420px;
+      box-shadow: 0 0 80px rgba(124,106,247,0.15);
+      animation: slideUp 0.5s ease;
+    }
+
+    @keyframes slideUp {
+      from { opacity: 0; transform: translateY(24px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .auth-logo {
+      display: flex; align-items: center; gap: 10px; margin-bottom: 32px;
+    }
+    .auth-logo .icon {
+      width: 40px; height: 40px; background: linear-gradient(135deg, var(--accent), var(--accent2));
+      border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 20px;
+    }
+    .auth-logo span { font-family: 'Syne', sans-serif; font-size: 22px; font-weight: 800; }
+
+    .auth-title { font-family: 'Syne', sans-serif; font-size: 28px; font-weight: 700; margin-bottom: 8px; }
+    .auth-sub { color: var(--muted); font-size: 14px; margin-bottom: 32px; }
+
+    .tab-switch {
+      display: flex; background: var(--bg); border-radius: 10px; padding: 4px;
+      margin-bottom: 28px;
+    }
+    .tab-btn {
+      flex: 1; padding: 8px; border: none; background: transparent;
+      color: var(--muted); font-family: 'DM Sans', sans-serif; font-size: 14px;
+      cursor: pointer; border-radius: 8px; transition: all 0.2s;
+    }
+    .tab-btn.active { background: var(--surface2); color: var(--text); font-weight: 500; }
+
+    .form-group { margin-bottom: 16px; }
+    .form-group label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 6px; font-weight: 500; letter-spacing: 0.03em; }
+
+    input {
+      width: 100%; padding: 12px 16px; background: var(--bg);
+      border: 1px solid var(--border); border-radius: 10px;
+      color: var(--text); font-family: 'DM Sans', sans-serif; font-size: 15px;
+      outline: none; transition: border-color 0.2s;
+    }
+    input:focus { border-color: var(--accent); }
+    input::placeholder { color: var(--muted); }
+
+    .btn-primary {
+      width: 100%; padding: 14px; background: linear-gradient(135deg, var(--accent), var(--accent2));
+      border: none; border-radius: 10px; color: #fff; font-family: 'Syne', sans-serif;
+      font-size: 15px; font-weight: 700; cursor: pointer; transition: opacity 0.2s, transform 0.1s;
+      margin-top: 8px;
+    }
+    .btn-primary:hover { opacity: 0.9; transform: translateY(-1px); }
+    .btn-primary:active { transform: translateY(0); }
+    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .auth-error {
+      background: rgba(248,113,113,0.1); border: 1px solid rgba(248,113,113,0.3);
+      border-radius: 8px; padding: 10px 14px; font-size: 13px; color: var(--error);
+      margin-bottom: 16px; display: none;
+    }
+
+    /* ── App Shell ── */
+    #app { display: none; min-height: 100vh; position: relative; z-index: 1; }
+
+    /* ── Navbar ── */
+    nav {
+      position: sticky; top: 0; z-index: 50;
+      background: rgba(10,10,15,0.85); backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 32px; height: 64px;
+    }
+    .nav-logo { display: flex; align-items: center; gap: 10px; }
+    .nav-logo .icon {
+      width: 32px; height: 32px; background: linear-gradient(135deg, var(--accent), var(--accent2));
+      border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 16px;
+    }
+    .nav-logo span { font-family: 'Syne', sans-serif; font-size: 18px; font-weight: 800; }
+
+    .nav-right { display: flex; align-items: center; gap: 16px; }
+    .user-pill {
+      display: flex; align-items: center; gap: 8px;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 100px; padding: 6px 14px 6px 6px;
+    }
+    .user-avatar {
+      width: 28px; height: 28px; background: linear-gradient(135deg, var(--accent), var(--accent2));
+      border-radius: 50%; display: flex; align-items: center; justify-content: center;
+      font-size: 12px; font-weight: 700; color: white;
+    }
+    .user-email { font-size: 13px; color: var(--muted); max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    .btn-logout {
+      background: transparent; border: 1px solid var(--border);
+      color: var(--muted); padding: 7px 16px; border-radius: 8px;
+      font-family: 'DM Sans', sans-serif; font-size: 13px; cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn-logout:hover { border-color: var(--error); color: var(--error); }
+
+    /* ── Main Layout ── */
+    main { max-width: 1100px; margin: 0 auto; padding: 48px 24px; }
+
+    .page-header { margin-bottom: 48px; }
+    .page-header h1 { font-family: 'Syne', sans-serif; font-size: 42px; font-weight: 800; line-height: 1.1; }
+    .page-header h1 span {
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    .page-header p { color: var(--muted); font-size: 17px; margin-top: 12px; }
+
+    /* ── Stats Row ── */
+    .stats-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 40px; }
+    .stat-card {
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 20px 24px;
+    }
+    .stat-card .label { font-size: 12px; color: var(--muted); font-weight: 500; letter-spacing: 0.05em; text-transform: uppercase; margin-bottom: 8px; }
+    .stat-card .value { font-family: 'Syne', sans-serif; font-size: 32px; font-weight: 700; }
+    .stat-card .value.accent { color: var(--accent); }
+    .stat-card .value.accent2 { color: var(--accent2); }
+    .stat-card .value.success { color: var(--success); }
+
+    /* ── Grid ── */
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+
+    /* ── Card ── */
+    .card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 28px;
+    }
+    .card-title {
+      font-family: 'Syne', sans-serif; font-size: 18px; font-weight: 700;
+      margin-bottom: 20px; display: flex; align-items: center; gap: 8px;
+    }
+    .card-title .dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+    }
+
+    /* ── Form elements ── */
+    select {
+      width: 100%; padding: 12px 16px; background: var(--bg);
+      border: 1px solid var(--border); border-radius: 10px;
+      color: var(--text); font-family: 'DM Sans', sans-serif; font-size: 15px;
+      outline: none; cursor: pointer; transition: border-color 0.2s;
+      -webkit-appearance: none; appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%236b6b85' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+      background-repeat: no-repeat; background-position: right 14px center;
+    }
+    select:focus { border-color: var(--accent); }
+
+    textarea {
+      width: 100%; padding: 12px 16px; background: var(--bg);
+      border: 1px solid var(--border); border-radius: 10px;
+      color: var(--text); font-family: 'DM Sans', sans-serif; font-size: 15px;
+      outline: none; resize: vertical; min-height: 120px;
+      transition: border-color 0.2s; line-height: 1.6;
+    }
+    textarea:focus { border-color: var(--accent); }
+    textarea::placeholder { color: var(--muted); }
+
+    .field { margin-bottom: 16px; }
+    .field label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 6px; font-weight: 500; }
+
+    .btn-generate {
+      width: 100%; padding: 14px; background: linear-gradient(135deg, var(--accent), var(--accent2));
+      border: none; border-radius: 10px; color: #fff; font-family: 'Syne', sans-serif;
+      font-size: 15px; font-weight: 700; cursor: pointer; transition: opacity 0.2s, transform 0.1s;
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+    }
+    .btn-generate:hover:not(:disabled) { opacity: 0.9; transform: translateY(-1px); }
+    .btn-generate:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* ── Preview Card ── */
+    .preview-card { grid-column: span 1; display: flex; flex-direction: column; }
+    .preview-empty {
+      flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+      padding: 40px; text-align: center; gap: 12px; color: var(--muted);
+    }
+    .preview-empty .emoji { font-size: 48px; }
+    .preview-empty p { font-size: 14px; line-height: 1.5; }
+
+    .email-preview { display: none; flex-direction: column; gap: 16px; }
+    .email-subject-preview {
+      background: var(--bg); border: 1px solid var(--border); border-radius: 10px;
+      padding: 14px 16px;
+    }
+    .email-subject-preview .meta { font-size: 11px; color: var(--muted); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.05em; }
+    .email-subject-preview .val { font-size: 15px; font-weight: 500; }
+
+    .email-body-preview {
+      background: var(--bg); border: 1px solid var(--border); border-radius: 10px;
+      padding: 16px; font-size: 14px; line-height: 1.7; color: #c8c8d8;
+      max-height: 280px; overflow-y: auto; flex: 1;
+    }
+
+    .action-row { display: flex; gap: 10px; margin-top: 4px; }
+    .btn-copy {
+      flex: 1; padding: 11px; background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 10px; color: var(--text); font-family: 'DM Sans', sans-serif;
+      font-size: 14px; cursor: pointer; transition: all 0.2s; font-weight: 500;
+    }
+    .btn-copy:hover { border-color: var(--accent); color: var(--accent); }
+
+    .btn-send-open {
+      flex: 1; padding: 11px; background: linear-gradient(135deg, rgba(124,106,247,0.2), rgba(232,93,138,0.2));
+      border: 1px solid var(--accent); border-radius: 10px; color: var(--accent);
+      font-family: 'DM Sans', sans-serif; font-size: 14px; cursor: pointer;
+      transition: all 0.2s; font-weight: 500;
+    }
+    .btn-send-open:hover { background: linear-gradient(135deg, var(--accent), var(--accent2)); color: white; }
+
+    /* ── Send Modal ── */
+    .modal-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.7); backdrop-filter: blur(8px);
+      z-index: 200; display: none; align-items: center; justify-content: center;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 24px; padding: 40px; width: 480px;
+      box-shadow: 0 0 60px rgba(124,106,247,0.2);
+      animation: slideUp 0.3s ease;
+    }
+    .modal-title { font-family: 'Syne', sans-serif; font-size: 22px; font-weight: 700; margin-bottom: 24px; }
+
+    .send-status {
+      padding: 12px 16px; border-radius: 10px; font-size: 14px;
+      margin-top: 16px; display: none;
+    }
+    .send-status.success { background: rgba(52,211,153,0.1); border: 1px solid rgba(52,211,153,0.3); color: var(--success); display: block; }
+    .send-status.error { background: rgba(248,113,113,0.1); border: 1px solid rgba(248,113,113,0.3); color: var(--error); display: block; }
+
+    .modal-actions { display: flex; gap: 10px; margin-top: 20px; }
+    .btn-cancel {
+      flex: 1; padding: 12px; background: transparent; border: 1px solid var(--border);
+      border-radius: 10px; color: var(--muted); font-family: 'DM Sans', sans-serif;
+      font-size: 14px; cursor: pointer; transition: all 0.2s;
+    }
+    .btn-cancel:hover { border-color: var(--muted); color: var(--text); }
+
+    /* ── History ── */
+    .history-section { margin-top: 40px; }
+    .history-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; margin-top: 20px; }
+    .history-item {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 20px; cursor: pointer;
+      transition: border-color 0.2s, transform 0.2s;
+    }
+    .history-item:hover { border-color: var(--accent); transform: translateY(-2px); }
+    .history-item .h-subject { font-weight: 500; font-size: 14px; margin-bottom: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .history-item .h-preview { font-size: 13px; color: var(--muted); line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+    .history-item .h-date { font-size: 11px; color: var(--muted); margin-top: 10px; }
+    .history-empty { color: var(--muted); font-size: 14px; padding: 20px 0; }
+
+    /* ── Loading spinner ── */
+    .spinner {
+      width: 18px; height: 18px; border: 2px solid rgba(255,255,255,0.3);
+      border-top-color: white; border-radius: 50%; animation: spin 0.7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Toast ── */
+    .toast {
+      position: fixed; bottom: 32px; right: 32px; z-index: 300;
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 12px; padding: 14px 20px;
+      font-size: 14px; box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+      transform: translateY(80px); opacity: 0;
+      transition: all 0.3s ease;
+    }
+    .toast.show { transform: translateY(0); opacity: 1; }
+    .toast.success { border-color: var(--success); color: var(--success); }
+    .toast.error { border-color: var(--error); color: var(--error); }
+  </style>
+</head>
+<body>
+
+<!-- ── AUTH SCREEN ── -->
+<div id="auth-screen">
+  <div class="auth-card">
+    <div class="auth-logo">
+      <div class="icon">✉️</div>
+      <span>MailCraft AI</span>
+    </div>
+    <h2 class="auth-title">Bun venit</h2>
+    <p class="auth-sub">Autentifică-te pentru a continua</p>
+
+    <div class="tab-switch">
+      <button class="tab-btn active" onclick="switchTab('login')">Autentificare</button>
+      <button class="tab-btn" onclick="switchTab('register')">Înregistrare</button>
+    </div>
+
+    <div class="auth-error" id="auth-error"></div>
+
+    <div class="form-group">
+      <label>Email</label>
+      <input type="email" id="auth-email" placeholder="tu@exemplu.com" />
+    </div>
+    <div class="form-group">
+      <label>Parolă</label>
+      <input type="password" id="auth-password" placeholder="Minim 6 caractere" />
+    </div>
+
+    <button class="btn-primary" id="auth-btn" onclick="handleAuth()">
+      Autentifică-te
+    </button>
+  </div>
+</div>
+
+<!-- ── MAIN APP ── -->
+<div id="app">
+  <nav>
+    <div class="nav-logo">
+      <div class="icon">✉️</div>
+      <span>MailCraft AI</span>
+    </div>
+    <div class="nav-right">
+      <div class="user-pill">
+        <div class="user-avatar" id="user-initials">?</div>
+        <span class="user-email" id="user-email-display"></span>
+      </div>
+      <button class="btn-logout" onclick="logout()">Deconectare</button>
+    </div>
+  </nav>
+
+  <main>
+    <div class="page-header">
+      <h1>Generator de <span>Email Marketing</span><br>cu Inteligență Artificială</h1>
+      <p>Creează emailuri profesionale în secunde, trimite-le direct destinatarilor.</p>
+    </div>
+
+    <!-- Stats -->
+    <div class="stats-row">
+      <div class="stat-card">
+        <div class="label">Emailuri generate</div>
+        <div class="value accent" id="stat-generated">0</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Emailuri trimise</div>
+        <div class="value success" id="stat-sent">0</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Sesiune activă</div>
+        <div class="value accent2" id="stat-session">—</div>
+      </div>
+    </div>
+
+    <!-- Generator + Preview -->
+    <div class="grid-2">
+      <!-- Generator -->
+      <div class="card">
+        <div class="card-title"><div class="dot"></div> Generator AI</div>
+
+        <div class="field">
+          <label>Subiect / Temă email</label>
+          <textarea id="topic" placeholder="Ex: Lansarea produsului nostru nou — reducere 30% pentru primii clienți"></textarea>
+        </div>
+
+        <div class="field">
+          <label>Tonul emailului</label>
+          <select id="tone">
+            <option value="profesional">Profesional</option>
+            <option value="prietenos și casual">Prietenos & Casual</option>
+            <option value="urgent și convingător">Urgent & Convingător</option>
+            <option value="elegant și rafinat">Elegant & Rafinat</option>
+            <option value="entuziast și energic">Entuziast & Energic</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label>Limba</label>
+          <select id="language">
+            <option value="română">🇷🇴 Română</option>
+            <option value="engleză">🇬🇧 Engleză</option>
+            <option value="franceză">🇫🇷 Franceză</option>
+          </select>
+        </div>
+
+        <button class="btn-generate" id="generate-btn" onclick="generateEmail()">
+          <span id="gen-label">✨ Generează cu AI</span>
+        </button>
+      </div>
+
+      <!-- Preview -->
+      <div class="card preview-card">
+        <div class="card-title"><div class="dot"></div> Preview Email</div>
+
+        <div class="preview-empty" id="preview-empty">
+          <div class="emoji">🤖</div>
+          <p>Completează formularul și apasă<br><strong>Generează cu AI</strong> pentru a vedea emailul.</p>
+        </div>
+
+        <div class="email-preview" id="email-preview">
+          <div class="email-subject-preview">
+            <div class="meta">Subiect</div>
+            <div class="val" id="preview-subject">—</div>
+          </div>
+          <div class="email-body-preview" id="preview-body"></div>
+          <div class="action-row">
+            <button class="btn-copy" onclick="copyEmail()">📋 Copiază</button>
+            <button class="btn-send-open" onclick="openSendModal()">📤 Trimite Email</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- History -->
+    <div class="history-section">
+      <div class="card">
+        <div class="card-title"><div class="dot"></div> Istoricul Emailurilor Generate</div>
+        <div id="history-container"><div class="history-empty">Nu ai generat emailuri încă.</div></div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- ── SEND MODAL ── -->
+<div class="modal-overlay" id="send-modal">
+  <div class="modal">
+    <div class="modal-title">📤 Trimite Emailul</div>
+
+    <div class="field">
+      <label>Destinatar (adresa email)</label>
+      <input type="email" id="send-to" placeholder="destinatar@exemplu.com" />
+    </div>
+    <div class="field">
+      <label>Numele tău / Companiei</label>
+      <input type="text" id="send-name" placeholder="Ex: Echipa MailCraft" />
+    </div>
+
+    <div class="send-status" id="send-status"></div>
+
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeSendModal()">Anulează</button>
+      <button class="btn-generate" id="send-btn" onclick="sendEmail()" style="flex:1;">
+        <span id="send-label">Trimite acum</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ── TOAST ── -->
+<div class="toast" id="toast"></div>
+
+<!-- ── FIREBASE ── -->
+<script type="module">
+  import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
+  import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged }
+    from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
+  import { getFirestore, collection, addDoc, getDocs, query, where, orderBy, doc, getDoc, setDoc, updateDoc, increment }
+    from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyChFySTj0aISHZjmUzgUEJjRBfFgNHBgqU",
+    authDomain: "email-marketing-ai-2228a.firebaseapp.com",
+    projectId: "email-marketing-ai-2228a",
+    storageBucket: "email-marketing-ai-2228a.firebasestorage.app",
+    messagingSenderId: "979581901115",
+    appId: "1:979581901115:web:20333a9e06bbb84857ff1e"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db = getFirestore(app);
+
+  // ── State ──
+  let currentUser = null;
+  let currentEmail = { subject: '', body: '' };
+  let isLoginMode = true;
+
+  // ── Expose globals ──
+  window.switchTab = (mode) => {
+    isLoginMode = mode === 'login';
+    document.querySelectorAll('.tab-btn').forEach((b, i) => b.classList.toggle('active', i === (isLoginMode ? 0 : 1)));
+    document.getElementById('auth-btn').textContent = isLoginMode ? 'Autentifică-te' : 'Creează cont';
+  };
+
+  window.handleAuth = async () => {
+    const email = document.getElementById('auth-email').value.trim();
+    const password = document.getElementById('auth-password').value;
+    const errEl = document.getElementById('auth-error');
+    errEl.style.display = 'none';
+
+    if (!email || !password) { showAuthError('Completează toate câmpurile.'); return; }
+
+    document.getElementById('auth-btn').disabled = true;
+    document.getElementById('auth-btn').textContent = 'Se procesează...';
+
+    try {
+      if (isLoginMode) {
+        await signInWithEmailAndPassword(auth, email, password);
+      } else {
+        await createUserWithEmailAndPassword(auth, email, password);
+      }
+    } catch (e) {
+      const msgs = {
+        'auth/user-not-found': 'Contul nu există.',
+        'auth/wrong-password': 'Parolă incorectă.',
+        'auth/email-already-in-use': 'Email deja înregistrat.',
+        'auth/weak-password': 'Parola trebuie să aibă cel puțin 6 caractere.',
+        'auth/invalid-email': 'Adresă de email invalidă.',
+        'auth/invalid-credential': 'Email sau parolă incorectă.',
+      };
+      showAuthError(msgs[e.code] || e.message);
+      document.getElementById('auth-btn').disabled = false;
+      document.getElementById('auth-btn').textContent = isLoginMode ? 'Autentifică-te' : 'Creează cont';
+    }
+  };
+
+  function showAuthError(msg) {
+    const el = document.getElementById('auth-error');
+    el.textContent = msg; el.style.display = 'block';
+  }
+
+  window.logout = () => signOut(auth);
+
+  // ── Auth state ──
+  onAuthStateChanged(auth, async (user) => {
+    currentUser = user;
+    if (user) {
+      document.getElementById('auth-screen').style.display = 'none';
+      document.getElementById('app').style.display = 'block';
+
+      const initials = user.email.charAt(0).toUpperCase();
+      document.getElementById('user-initials').textContent = initials;
+      document.getElementById('user-email-display').textContent = user.email;
+      document.getElementById('stat-session').textContent = initials + '•••';
+
+      await loadStats();
+      await loadHistory();
+    } else {
+      document.getElementById('auth-screen').style.display = 'flex';
+      document.getElementById('app').style.display = 'none';
+    }
+  });
+
+  // ── Load stats ──
+  async function loadStats() {
+    try {
+      const ref = doc(db, 'users', currentUser.uid);
+      const snap = await getDoc(ref);
+      if (snap.exists()) {
+        const d = snap.data();
+        document.getElementById('stat-generated').textContent = d.generated || 0;
+        document.getElementById('stat-sent').textContent = d.sent || 0;
+      }
+    } catch(e) { console.log('Stats:', e.message); }
+  }
+
+  async function incrementStat(field) {
+    try {
+      const ref = doc(db, 'users', currentUser.uid);
+      const snap = await getDoc(ref);
+      if (snap.exists()) {
+        await updateDoc(ref, { [field]: increment(1) });
+      } else {
+        await setDoc(ref, { generated: 0, sent: 0, [field]: 1 });
+      }
+      await loadStats();
+    } catch(e) { console.log('Increment:', e.message); }
+  }
+
+  // ── Load history ──
+  async function loadHistory() {
+    try {
+      const q = query(
+        collection(db, 'emails'),
+        where('uid', '==', currentUser.uid),
+        orderBy('createdAt', 'desc')
+      );
+      const snap = await getDocs(q);
+      const container = document.getElementById('history-container');
+
+      if (snap.empty) {
+        container.innerHTML = '<div class="history-empty">Nu ai generat emailuri încă.</div>';
+        return;
+      }
+
+      const items = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      container.innerHTML = `<div class="history-grid">${items.map(item => `
+        <div class="history-item" onclick='loadFromHistory(${JSON.stringify(JSON.stringify(item))})'>
+          <div class="h-subject">${item.subject}</div>
+          <div class="h-preview">${item.body.replace(/\n/g, ' ')}</div>
+          <div class="h-date">${new Date(item.createdAt?.toDate()).toLocaleString('ro-RO')}</div>
+        </div>
+      `).join('')}</div>`;
+    } catch(e) { console.log('History:', e.message); }
+  }
+
+  window.loadFromHistory = (jsonStr) => {
+    const item = JSON.parse(jsonStr);
+    currentEmail = { subject: item.subject, body: item.body };
+    showPreview(item.subject, item.body);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  // ── Generate email ──
+  window.generateEmail = async () => {
+    const topic = document.getElementById('topic').value.trim();
+    const tone = document.getElementById('tone').value;
+    const language = document.getElementById('language').value;
+
+    if (!topic) { showToast('Completează subiectul emailului!', 'error'); return; }
+
+    const btn = document.getElementById('generate-btn');
+    const label = document.getElementById('gen-label');
+    btn.disabled = true;
+    label.innerHTML = '<div class="spinner"></div> Generează...';
+
+    try {
+      const res = await fetch('/api/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ topic, tone, language })
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+
+      currentEmail = { subject: data.subject, body: data.body };
+      showPreview(data.subject, data.body);
+
+      // Salvează în Firestore
+      await addDoc(collection(db, 'emails'), {
+        uid: currentUser.uid,
+        subject: data.subject,
+        body: data.body,
+        topic, tone, language,
+        createdAt: new Date()
+      });
+
+      await incrementStat('generated');
+      await loadHistory();
+      showToast('Email generat cu succes! ✨', 'success');
+
+    } catch(e) {
+      showToast('Eroare: ' + e.message, 'error');
+    } finally {
+      btn.disabled = false;
+      label.textContent = '✨ Generează cu AI';
+    }
+  };
+
+  function showPreview(subject, body) {
+    document.getElementById('preview-empty').style.display = 'none';
+    const previewEl = document.getElementById('email-preview');
+    previewEl.style.display = 'flex';
+    document.getElementById('preview-subject').textContent = subject;
+    document.getElementById('preview-body').innerHTML = body.split('\n\n').map(p =>
+      `<p style="margin-bottom:12px">${p.replace(/\n/g,'<br>')}</p>`
+    ).join('');
+  }
+
+  // ── Copy ──
+  window.copyEmail = () => {
+    const text = `Subiect: ${currentEmail.subject}\n\n${currentEmail.body}`;
+    navigator.clipboard.writeText(text).then(() => showToast('Copiat în clipboard! 📋', 'success'));
+  };
+
+  // ── Send modal ──
+  window.openSendModal = () => {
+    if (!currentEmail.subject) { showToast('Generează un email mai întâi!', 'error'); return; }
+    document.getElementById('send-modal').classList.add('open');
+    document.getElementById('send-status').className = 'send-status';
+    document.getElementById('send-status').textContent = '';
+  };
+
+  window.closeSendModal = () => {
+    document.getElementById('send-modal').classList.remove('open');
+  };
+
+  // ── Send email ──
+  window.sendEmail = async () => {
+    const to = document.getElementById('send-to').value.trim();
+    const senderName = document.getElementById('send-name').value.trim();
+    const statusEl = document.getElementById('send-status');
+
+    if (!to) { statusEl.className = 'send-status error'; statusEl.textContent = 'Introdu adresa destinatarului.'; return; }
+
+    const btn = document.getElementById('send-btn');
+    const label = document.getElementById('send-label');
+    btn.disabled = true;
+    label.innerHTML = '<div class="spinner"></div> Se trimite...';
+    statusEl.className = 'send-status';
+
+    try {
+      const res = await fetch('/api/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ to, subject: currentEmail.subject, body: currentEmail.body, senderName })
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+
+      statusEl.className = 'send-status success';
+      statusEl.textContent = `✅ Email trimis cu succes către ${to}!`;
+      await incrementStat('sent');
+      showToast('Email trimis! 🚀', 'success');
+
+    } catch(e) {
+      statusEl.className = 'send-status error';
+      statusEl.textContent = '❌ ' + e.message;
+    } finally {
+      btn.disabled = false;
+      label.textContent = 'Trimite acum';
+    }
+  };
+
+  // ── Toast ──
+  window.showToast = (msg, type = 'success') => {
+    const el = document.getElementById('toast');
+    el.textContent = msg;
+    el.className = `toast ${type} show`;
+    setTimeout(() => { el.className = 'toast'; }, 3500);
+  };
+
+  // ── Close modal on overlay click ──
+  document.getElementById('send-modal').addEventListener('click', (e) => {
+    if (e.target === document.getElementById('send-modal')) closeSendModal();
+  });
+
+  // ── Enter key for auth ──
+  document.getElementById('auth-password').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') window.handleAuth();
+  });
+</script>
+</body>
+</html>
