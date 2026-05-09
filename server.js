@@ -8,9 +8,6 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static('public'));
 
-const resend = new Resend(process.env.RESEND_API_KEY);
-const GROQ_API_KEY = process.env.GROQ_API_KEY;
-
 // ─── Generare email cu Groq AI ──────────────────────────────────────────────
 app.post('/api/generate', async (req, res) => {
   const { topic, tone, language } = req.body;
@@ -29,7 +26,7 @@ Răspunde DOAR cu un JSON valid (fără markdown, fără backticks, fără text 
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${GROQ_API_KEY}`
+        'Authorization': `Bearer ${process.env.GROQ_API_KEY}`
       },
       body: JSON.stringify({
         model: 'llama-3.3-70b-versatile',
@@ -64,6 +61,9 @@ app.post('/api/send', async (req, res) => {
   if (!to || !subject || !body) {
     return res.status(400).json({ error: 'Câmpuri lipsă: to, subject, body.' });
   }
+
+  // Initializare aici ca sa citeasca variabila din environment
+  const resend = new Resend(process.env.RESEND_API_KEY);
 
   const htmlBody = body
     .split('\n\n')
